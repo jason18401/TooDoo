@@ -10,11 +10,18 @@ import UIKit
 
 class ToDoViewController: UITableViewController {
 
-    let itemArray = ["Find Food", "Buy Food", "get Food"]
+    var itemArray = ["Find Food", "Buy Food", "get Food"]
+    
+    let defaults = UserDefaults.standard
     
     override func viewDidLoad() {
         super.viewDidLoad()
         // Do any additional setup after loading the view.
+        
+        //set array as the updated array
+        if let items = defaults.array(forKey: "TodoListArray") as? [String]{
+            itemArray = items
+        }
     }
 
     //Mark - Tableview Datasource Methods
@@ -48,6 +55,35 @@ class ToDoViewController: UITableViewController {
         
         //turns the highlighted row back to the original color
         tableView.deselectRow(at: indexPath, animated: true)
+    }
+    
+    //Add new items
+    @IBAction func addButtonPressed(_ sender: UIBarButtonItem) {
+        
+        var textField = UITextField()
+        
+        let alert = UIAlertController(title: "Add New Todo Item", message: "", preferredStyle: .alert)
+        
+        let action = UIAlertAction(title: "Add Item", style: .default) { (action) in
+            
+            self.itemArray.append(textField.text!)
+            
+            self.defaults.set(self.itemArray, forKey: "TodoListArray")
+            
+            self.tableView.reloadData()
+        }
+        
+        alert.addTextField { (alertTextField) in
+            alertTextField.placeholder = "Create new item"
+            textField = alertTextField
+            
+        }
+        
+        //Adds action to alert
+        alert.addAction(action)
+        
+        present(alert, animated: true, completion: nil)
+        
     }
     
 }
