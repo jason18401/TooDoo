@@ -14,6 +14,14 @@ class ToDoViewController: UITableViewController {
     //var itemArray = ["Find Food", "Buy Food", "get Food"]
     var itemArray = [Item]()
     
+    var selectedCategory : Category?{
+        
+        //will happen as soon as it gets set as a value
+        didSet{
+            loadItems()
+        }
+    }
+    
     //filepath for persisting data
     //let dataFilePath = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first?.appendingPathComponent("Items.plist")
     
@@ -38,7 +46,7 @@ class ToDoViewController: UITableViewController {
         //    itemArray = items
         //}
         
-        loadItems()
+        //loadItems() //we dont need it anymore here bc of selectedCategory didSet
     }
 
     //Mark - Tableview Datasource Methods
@@ -100,6 +108,7 @@ class ToDoViewController: UITableViewController {
             let newItem = Item(context: self.context) //Item Object comes from DataModel, type - NSManagedObject
             newItem.title = textField.text! //1 of 2 attributes
             newItem.done = false    //2 of 2 attributes
+            newItem.parentCategory = self.selectedCategory//parentCategory Created by us in Item. Now needed
             self.itemArray.append(newItem)
             
             self.saveItems()
@@ -130,7 +139,18 @@ class ToDoViewController: UITableViewController {
         self.tableView.reloadData()
     }
     
-    func loadItems(with request : NSFetchRequest<Item> = Item.fetchRequest()){ //Item.fetch... default value so you can call without passing it a value
+    func loadItems(with request : NSFetchRequest<Item> = Item.fetchRequest(), predicate : NSPredicate? = nil){ //add predicate param so that the first predicate in extension wont get overwritten
+        //Item.fetch... default value so you can call without passing it a value
+        
+        //filter out the results
+        let categoryPredicate = NSPredicate(format: "parentCategory.name MATCHES %@", selectedCategory!.name!)
+        
+        if let additionalPredicate = predicate{
+            request.predicate = NSCompoundPredicate(andPredicateWithSubpredicates: [categoryPredicate, additionalPredicate])
+        }else{
+            request.predicate = categoryPredicate
+        }
+        
         let request : NSFetchRequest<Item> = Item.fetchRequest()
         
         do{
@@ -145,14 +165,12 @@ class ToDoViewController: UITableViewController {
 
 extension ToDoViewController: UISearchBarDelegate{
     
-    func searchBarBookmarkButtonClicked(_ searchBar: UISearchBar) {
+    func searchBarSearchButtonClicked(_ searchBar: UISearchBar) {
         let request : NSFetchRequest<Item> = Item.fetchRequest()
      
         let predicate = NSPredicate(format: "title CONTAINS[cd] %@", searchBar.text!)
-        request.predicate = predicate
         
-        let sortDescriptor = NSSortDescriptor(key: "title", ascending: true)
-        request.sortDescriptors = [sortDescriptor]
+        request.sortDescriptors = [NSSortDescriptor(key: "title", ascending: true)]
         
 //        do{
 //            //load the results into the itemArray
@@ -162,7 +180,7 @@ extension ToDoViewController: UISearchBarDelegate{
 //        }
         
         //does same thing as above do-catch statement
-        loadItems(with: request)
+        loadItems(with: request, predicate: predicate)
         
     }
     

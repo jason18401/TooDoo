@@ -36,6 +36,23 @@ class CategoryViewController: UITableViewController {
         
         return cell
     }
+    
+    
+    //MARK: TableView Delegate Methods
+    override func tableView(_ tableView: UITableView, didSelectRowAt indexPath: IndexPath) {
+        performSegue(withIdentifier: "goToItems", sender: self)
+    }
+    
+    //to load up the list relevent to the category
+    override func prepare(for segue: UIStoryboardSegue, sender: Any?) {
+        //if we had mutliple segues we can use a if
+        let destinationVC = segue.destination as! ToDoViewController
+        
+        //to identify the current row that is selected
+        if let indexPath = tableView.indexPathForSelectedRow{
+            destinationVC.selectedCategory = categoryArray[indexPath.row]
+        }
+    }
 
     @IBAction func addButtonPressed(_ sender: UIBarButtonItem) {
         
@@ -89,8 +106,5 @@ class CategoryViewController: UITableViewController {
         
         tableView.reloadData()
     }
-    
-    //MARK: TableView Delegate Methods
-    //leave
     
 }
