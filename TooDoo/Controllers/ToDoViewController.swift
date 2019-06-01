@@ -8,11 +8,13 @@
 
 import UIKit
 import CoreData
+import RealmSwift
 
 class ToDoViewController: UITableViewController {
 
     //var itemArray = ["Find Food", "Buy Food", "get Food"]
-    var itemArray = [Item]()
+    var todoItems : Results<Item>?
+    let realm = try! Realm()
     
     var selectedCategory : Category?{
         
@@ -26,7 +28,7 @@ class ToDoViewController: UITableViewController {
     //let dataFilePath = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first?.appendingPathComponent("Items.plist")
     
     //singleton to access AppDelegate as Object
-    let context = (UIApplication.shared.delegate as! AppDelegate).persistentContainer.viewContext
+    //let context = (UIApplication.shared.delegate as! AppDelegate).persistentContainer.viewContext
     
     @IBOutlet weak var searchBar: UISearchBar!
     
@@ -39,7 +41,7 @@ class ToDoViewController: UITableViewController {
         
        // print(dataFilePath)
         
-        searchBar.delegate = self
+        //searchBar.delegate = self
         
         //set array as the updated array
         //if let items = defaults.array(forKey: "TodoListArray") as? [String]{
@@ -51,7 +53,7 @@ class ToDoViewController: UITableViewController {
 
     //Mark - Tableview Datasource Methods
     override func tableView(_ tableView: UITableView, numberOfRowsInSection section: Int) -> Int {
-        return itemArray.count
+        return todoItems?.count ?? 1
     }
 
     //called initially when the tableView is loaded up
@@ -59,12 +61,16 @@ class ToDoViewController: UITableViewController {
         
         let cell = tableView.dequeueReusableCell(withIdentifier: "ToDoItemCell", for: indexPath)
         
-        cell.textLabel?.text = itemArray[indexPath.row].title
-        
-        if itemArray[indexPath.row].done == true{
-            cell.accessoryType = .checkmark
+        if let item = todoItems?[indexPath.row]{
+            cell.textLabel?.text = todoItems?[indexPath.row].title
+            
+            if todoItems?[indexPath.row].done == true{
+                cell.accessoryType = .checkmark
+            }else{
+                cell.accessoryType = .none
+            }
         }else{
-            cell.accessoryType = .none
+            cell.textLabel?.text = "No Items Added"
         }
         
         return cell
@@ -74,23 +80,23 @@ class ToDoViewController: UITableViewController {
     override func tableView(_ tableView: UITableView, didSelectRowAt indexPath: IndexPath) {
         
         //print item into debug console
-        print(itemArray[indexPath.row])
+        print(todoItems?[indexPath.row])
         
         //the order matters with these two statements
         //context.delete(itemArray[indexPath.row])
         //itemArray.remove(at: itemArray[indexPath.row])
         
-        if itemArray[indexPath.row].done == false{
-            itemArray[indexPath.row].done = true
-        }else{
-            itemArray[indexPath.row].done = false
-        }
+//        if todoItems?[indexPath.row].done == false{
+//            todoItems?[indexPath.row].done = true
+//        }else{
+//            todoItems?[indexPath.row].done = false
+//        }
         
         //does the same thing as the above if-else. Does the opposite of what is set
         //itemArray[indexPath.row].done = !itemArray[indexPath.row].done
         
         //commits the current state of the context
-        saveItems()
+//        saveItems()
         
         //turns the highlighted row back to the original color
         tableView.deselectRow(at: indexPath, animated: true)
@@ -105,14 +111,19 @@ class ToDoViewController: UITableViewController {
         
         let action = UIAlertAction(title: "Add Item", style: .default) { (action) in
             
-            let newItem = Item(context: self.context) //Item Object comes from DataModel, type - NSManagedObject
-            newItem.title = textField.text! //1 of 2 attributes
-            newItem.done = false    //2 of 2 attributes
-            newItem.parentCategory = self.selectedCategory//parentCategory Created by us in Item. Now needed
-            self.itemArray.append(newItem)
-            
-            self.saveItems()
-            
+            if let currentCategory = self.selectedCategory{
+                do{
+                    //did the saving
+                    try self.realm.write {
+                        let newItem = Item()
+                        newItem.title = textField.text!
+                        currentCategory.items.append(newItem)
+                    }
+                }catch{
+                    print("error saving new items, \(error)")
+                }
+            }
+            self.tableView.reloadData()
         }
         
         alert.addTextField { (alertTextField) in
@@ -128,71 +139,58 @@ class ToDoViewController: UITableViewController {
         
     }
     
-    func saveItems(){
-        
-        do{
-            try context.save()
-        }catch{
-            print("Error saving context: \(error)")
-        }
-        
-        self.tableView.reloadData()
-    }
-    
-    func loadItems(with request : NSFetchRequest<Item> = Item.fetchRequest(), predicate : NSPredicate? = nil){ //add predicate param so that the first predicate in extension wont get overwritten
-        //Item.fetch... default value so you can call without passing it a value
-        
-        //filter out the results
-        let categoryPredicate = NSPredicate(format: "parentCategory.name MATCHES %@", selectedCategory!.name!)
-        
-        if let additionalPredicate = predicate{
-            request.predicate = NSCompoundPredicate(andPredicateWithSubpredicates: [categoryPredicate, additionalPredicate])
-        }else{
-            request.predicate = categoryPredicate
-        }
-        
-        let request : NSFetchRequest<Item> = Item.fetchRequest()
-        
-        do{
-            //load the results into the itemArray
-            itemArray = try context.fetch(request)
-        }catch{
-            print("Error fetching data from context \(error)")
-        }
-    }
-    
-}
-
-extension ToDoViewController: UISearchBarDelegate{
-    
-    func searchBarSearchButtonClicked(_ searchBar: UISearchBar) {
-        let request : NSFetchRequest<Item> = Item.fetchRequest()
-     
-        let predicate = NSPredicate(format: "title CONTAINS[cd] %@", searchBar.text!)
-        
-        request.sortDescriptors = [NSSortDescriptor(key: "title", ascending: true)]
-        
+//    func saveItems(){
+//
 //        do{
-//            //load the results into the itemArray
-//            itemArray = try context.fetch(request)
+//            try context.save()
 //        }catch{
-//            print("Error fetching data from context \(error)")
+//            print("Error saving context: \(error)")
 //        }
-        
-        //does same thing as above do-catch statement
-        loadItems(with: request, predicate: predicate)
-        
+//
+//        self.tableView.reloadData()
+//    }
+//
+    func loadItems(){ //add predicate param so that the first predicate in extension wont get overwritten
+        //Item.fetch... default value so you can call without passing it a value
+
+        todoItems = selectedCategory?.items.sorted(byKeyPath: "title", ascending: true)
+        tableView.reloadData()
+
+       }
     }
     
-    //when user presses the x the list gets reloaded
-    func searchBar(_ searchBar: UISearchBar, textDidChange searchText: String) {
-        if searchBar.text?.count == 0{
-            loadItems()
-            
-            DispatchQueue.main.async { //gets the code running in the background
-                searchBar.resignFirstResponder()//no longer currently selected, to get the blinking cursor and keyboard to go away
-            }
-        }
-    }
-}
+
+
+//extension ToDoViewController: UISearchBarDelegate{
+//
+//    func searchBarSearchButtonClicked(_ searchBar: UISearchBar) {
+//        let request : NSFetchRequest<Item> = Item.fetchRequest()
+//
+//        let predicate = NSPredicate(format: "title CONTAINS[cd] %@", searchBar.text!)
+//
+//        request.sortDescriptors = [NSSortDescriptor(key: "title", ascending: true)]
+//
+////        do{
+////            //load the results into the itemArray
+////            itemArray = try context.fetch(request)
+////        }catch{
+////            print("Error fetching data from context \(error)")
+////        }
+//
+//        //does same thing as above do-catch statement
+//        loadItems(with: request, predicate: predicate)
+//
+//    }
+//
+//    //when user presses the x the list gets reloaded
+//    func searchBar(_ searchBar: UISearchBar, textDidChange searchText: String) {
+//        if searchBar.text?.count == 0{
+//            loadItems()
+//
+//            DispatchQueue.main.async { //gets the code running in the background
+//                searchBar.resignFirstResponder()//no longer currently selected, to get the blinking cursor and keyboard to go away
+//            }
+//        }
+//    }
+//}
 
